@@ -33,7 +33,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <netinet/icmp6.h>
-#include <png.h>
+#include <Python.h>
 
 #undef offsetof
 #ifdef __compiler_offsetof
@@ -75,6 +75,42 @@ static int ping6(struct in6_addr *addr)
 	return ret;
 }
 
+static PyObject *method_blast_bytearray(PyObject *self, PyObject *args) {
+    struct in6_addr *addr_array = NULL;
+	
+	long *len = NULL;
+
+    /* Parse arguments */
+    if(!PyArg_ParseTuple(args, "Ol", &addr_array, &len)) {
+        return NULL;
+    }
+
+	for (int i=0;i<len;i++){
+		ping6(&addr_array[i]);
+	}
+
+    return PyLong_FromLong(1);
+}
+
+static PyMethodDef TurbopingerMethods[] = {
+    {"blast_bytearray", method_blast_bytearray, METH_VARARGS, "Blast array of ipv6 addreses, provided as raw bytearray"},
+    {NULL, NULL, 0, NULL}
+};
+
+static struct PyModuleDef TurbopingerModule = {
+    PyModuleDef_HEAD_INIT,
+    "turbopinger",
+    "Blazingly-fast ipv6 pinger, made for jinglePings event and not for DDOSing.",
+    -1,
+    TurbopingerMethods
+};
+
+PyMODINIT_FUNC PyInit_turbopinger(void) {
+	//main();
+    return PyModule_Create(&TurbopingerModule);
+}
+
+// if __name__=="__main__":
 int main(int argc, char *argv[])
 {
 	sock = socket(AF_INET6, SOCK_RAW, IPPROTO_ICMPV6);
