@@ -68,6 +68,8 @@ static int ping6(struct in6_addr *addr)
 
 	packet.hdr.icmp6_id++;
 
+	
+
 	do {
 		ret = sendto(sock, &packet, sizeof(packet), 0, (struct sockaddr *)&sin6, sizeof(sin6));
 	} while (ret < 0 && errno == EINTR);
@@ -105,10 +107,12 @@ static struct PyModuleDef TurbopingerModule = {
     TurbopingerMethods
 };
 
+#ifndef STANDALONE
 PyMODINIT_FUNC PyInit_turbopinger(void) {
 	//main();
     return PyModule_Create(&TurbopingerModule);
 }
+#endif
 
 // if __name__=="__main__":
 int main(int argc, char *argv[])
@@ -122,7 +126,20 @@ int main(int argc, char *argv[])
 		err(1, "setsockopt error");
 
 	struct in6_addr addr;
-	memset(&addr,0x00,8);
+	//memset(&addr,0x00,8);
+
+	//example - pinging my local IP:
+	// fe80::17d2:7100:f6b6:757
+
+	addr.s6_addr32[0]=0x000080fe;
+	addr.s6_addr32[1]=0x00000000;
+	addr.s6_addr32[2]=0x0071d217;
+	addr.s6_addr32[3]=0x5707b6f6;
+	
+	for (int i=0;i<4;i++){
+		printf("%04x ",  addr.s6_addr32[i]);
+	}
+	printf("\n");
 
 	ping6(&addr);
 	
