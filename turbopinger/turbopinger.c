@@ -45,11 +45,10 @@
 #define ADDR "2001:610:1908:a000:0000:0000:0000:0000"
 
 
-static int sock;
-
 static long counter = 0;
 
-static int ping6(struct in6_addr *addr)
+
+static int ping6(int sock_fd, struct in6_addr *addr)
 {
 	static union {
 		struct icmp6_hdr hdr;
@@ -74,21 +73,25 @@ static int ping6(struct in6_addr *addr)
 	printf("\n");
 
 	do {
-		ret = sendto(sock, &packet, sizeof(packet), 0, (struct sockaddr *)&sin6, sizeof(sin6));
+		ret = sendto(sock_fd, &packet, sizeof(packet), 0, (struct sockaddr *)&sin6, sizeof(sin6));
 	} while (ret < 0 && errno == EINTR);
 	printf("PINGED %ld\n",counter++);
 	return ret;
 }
 
 static PyObject *method_blast_bytearray(PyObject *self, PyObject *args) {
-    
-	init_sock();
-	
+    //pings single IP coming from a bytearray 
+	int sock = get_sock();	
+
+	if (sock == -1){
+		printf("error creating socket. Are you did sudo?");
+		return NULL;
+	}
+
 	struct in6_addr *addr = NULL;
 	
 	long *len = NULL;
 	
-
     /* Parse arguments */
     if(!PyArg_ParseTuple(args, "y#", &addr, &len)) {
         return NULL;
@@ -100,10 +103,12 @@ static PyObject *method_blast_bytearray(PyObject *self, PyObject *args) {
 	//}
 	//printf("\n");
 
-	ping6(addr);
+	ping6(sock, addr);
 	
     return PyLong_FromLong(1);
 }
+
+
 
 static PyMethodDef TurbopingerMethods[] = {
     {"blast_bytearray", method_blast_bytearray, METH_VARARGS, "Blast array of ipv6 addreses, provided as raw bytearray"},
@@ -125,21 +130,26 @@ PyMODINIT_FUNC PyInit_turbopinger(void) {
 }
 #endif
 
-void init_sock(){
-	sock = socket(AF_INET6, SOCK_RAW, IPPROTO_ICMPV6);
-	if (sock < 0)
-		err(1, "socket error");
-
+int get_sock(){
+	int sock = socket(AF_INET6, SOCK_RAW, IPPROTO_ICMPV6);
+	if (sock < 0){
+		//err(1, "socket error");
+		return -1;
+	}
+		
 	int csum = offsetof(struct icmp6_hdr, icmp6_cksum);
-	if (setsockopt(sock, SOL_RAW, IPV6_CHECKSUM, &csum, sizeof(csum)) < 0)
-		err(1, "setsockopt error");
+	if (setsockopt(sock, SOL_RAW, IPV6_CHECKSUM, &csum, sizeof(csum)) < 0){
+		//err(1, "setsockopt error");
+		return -1;
+	}
+		
+	return sock;
 }
 
 // if __name__=="__main__":
 int main(int argc, char *argv[])
 {
-
-	init_sock();
+	int sock = get_sock();
 	struct in6_addr addr;
 
 	/*
@@ -150,6 +160,8 @@ int main(int argc, char *argv[])
 
 	 To check if it works, you may use tcpdump:
 	 	sudo tcpdump -i any icmp6
+
+	 Please note2 - imcp6 != imcp
 	*/
 
 	addr.s6_addr32[0]=0x000080fe;
@@ -157,12 +169,13 @@ int main(int argc, char *argv[])
 	addr.s6_addr32[2]=0x0071d217;
 	addr.s6_addr32[3]=0x5707b6f6;
 	
+	printf("pinging ip6 address: ");
 	for (int i=0;i<4;i++){
 		printf("%08x ",  addr.s6_addr32[i]);
 	}
 	printf("\n");
 
-	ping6(&addr);
+	ping6(sock, &addr);
 	
 	return 0;
 }
