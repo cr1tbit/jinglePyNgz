@@ -1,2 +1,5 @@
 sudo python setup.py install
-sudo python -c "import turbopinger; turbopinger.blast_bytearray(b'\xfe\x80\x00\x00\x00\x00\x00\x00\x17\xd2\x71\x00\xf6\xb6\x07\x57')"
+sudo python -c "\
+import turbopinger,ipaddress;\
+addr=ipaddress.ip_address('::1');\
+turbopinger.blast_ip6_list([addr.packed,addr.packed]);"

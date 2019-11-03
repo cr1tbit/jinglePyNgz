@@ -1,6 +1,6 @@
 /*
- * ping-draw for https://jinglepings.com/
- * Copyright (c) 2018 Vladislav Grishenko <themiron@mail.ru>
+ * turbopinger - python C module made for https://jinglepings.com/ and
+ * Copyright (c) 2019 Jakub Sadowski <js@vcc.earth>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,9 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
- //gcc -o ping-draw -O3 -Wall ping-draw.c -lpng
- //sudo ./ping-draw -x 1790 -y 560 -f 10 /mnt/nas-ceph/waifu_128a.png
+/*
+ * This file is modified version of Vladislav Grishenko's ping-draw.
+ * The original .c file may be found in the same repo, under 
+ * helpers/ping-draw
+ */
 
 #include <stdio.h>
 #include <stdint.h>
@@ -42,11 +44,25 @@
 #define offsetof(TYPE, MEMBER) ((size_t) &((TYPE *)0)->MEMBER)
 #endif
 
-#define ADDR "2001:610:1908:a000:0000:0000:0000:0000"
+/*
+ * Methods around socket stuff
+ */
 
-
-static long counter = 0;
-
+int get_sock(){
+	int sock = socket(AF_INET6, SOCK_RAW, IPPROTO_ICMPV6);
+	if (sock < 0){
+		//err(1, "socket error");
+		return -1;
+	}
+		
+	int csum = offsetof(struct icmp6_hdr, icmp6_cksum);
+	if (setsockopt(sock, SOL_RAW, IPV6_CHECKSUM, &csum, sizeof(csum)) < 0){
+		//err(1, "setsockopt error");
+		return -1;
+	}
+		
+	return sock;
+}
 
 static int ping6(int sock_fd, struct in6_addr *addr)
 {
@@ -67,51 +83,58 @@ static int ping6(int sock_fd, struct in6_addr *addr)
 
 	packet.hdr.icmp6_id++;
 
-	for (int i=0;i<4;i++){
-		printf("%08x ",  addr->s6_addr32[i]);
-	}
-	printf("\n");
-
 	do {
 		ret = sendto(sock_fd, &packet, sizeof(packet), 0, (struct sockaddr *)&sin6, sizeof(sin6));
 	} while (ret < 0 && errno == EINTR);
-	printf("PINGED %ld\n",counter++);
+
 	return ret;
 }
 
-static PyObject *method_blast_bytearray(PyObject *self, PyObject *args) {
-    //pings single IP coming from a bytearray 
+/*
+ * Python wrappers
+ */
+
+static PyObject *method_blast_ip6_list(PyObject *self, PyObject *args) {
+    //pings fuckload of IPs coming from a bytearray list 
 	int sock = get_sock();	
+	int counter = 0;
+	PyObject *obj;
 
 	if (sock == -1){
 		printf("error creating socket. Are you did sudo?");
 		return NULL;
 	}
 
-	struct in6_addr *addr = NULL;
-	
-	long *len = NULL;
-	
-    /* Parse arguments */
-    if(!PyArg_ParseTuple(args, "y#", &addr, &len)) {
-        return NULL;
-    }
+	if (!PyArg_ParseTuple(args, "O", &obj)) {
+		printf("The received object is not object. Bailing out.");
+		return NULL;
+	}
 
-	//printf ("len: %d\n",len);
-	//for (int i=0;i<4;i++){
-	//	printf("%08x ",  addr->s6_addr32[i]);
-	//}
-	//printf("\n");
+	PyObject *iter = PyObject_GetIter(obj);
+	if (!iter) {
+		printf("The received object is not a list. Bailing out.");
+	}
 
-	ping6(sock, addr);
-	
+	while (1) {
+		PyObject *next = PyIter_Next(iter);
+		if (!next) {
+			// nothing left in the iterator
+			break;
+		}
+
+		if (PyBytes_Check(next)) {
+			counter++;
+			struct in6_addr *addr = PyBytes_AsString(next);
+			ping6(sock, addr);
+		}
+	}
+
+	printf("blasted %d IPs",counter);
     return PyLong_FromLong(1);
 }
 
-
-
 static PyMethodDef TurbopingerMethods[] = {
-    {"blast_bytearray", method_blast_bytearray, METH_VARARGS, "Blast array of ipv6 addreses, provided as raw bytearray"},
+	{"blast_ip6_list", method_blast_ip6_list, METH_VARARGS, "Blast array of ipv6 addreses, provided as raw bytearray"},
     {NULL, NULL, 0, NULL}
 };
 
@@ -130,23 +153,11 @@ PyMODINIT_FUNC PyInit_turbopinger(void) {
 }
 #endif
 
-int get_sock(){
-	int sock = socket(AF_INET6, SOCK_RAW, IPPROTO_ICMPV6);
-	if (sock < 0){
-		//err(1, "socket error");
-		return -1;
-	}
-		
-	int csum = offsetof(struct icmp6_hdr, icmp6_cksum);
-	if (setsockopt(sock, SOL_RAW, IPV6_CHECKSUM, &csum, sizeof(csum)) < 0){
-		//err(1, "setsockopt error");
-		return -1;
-	}
-		
-	return sock;
-}
+/*
+ * The module may be compiled and run stand-alone, for 
+ * testing I suppose. if __name__=="__main__":
+ */
 
-// if __name__=="__main__":
 int main(int argc, char *argv[])
 {
 	int sock = get_sock();
