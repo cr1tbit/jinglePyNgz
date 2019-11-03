@@ -68,7 +68,10 @@ static int ping6(struct in6_addr *addr)
 
 	packet.hdr.icmp6_id++;
 
-	
+	for (int i=0;i<4;i++){
+		printf("%08x ",  addr->s6_addr32[i]);
+	}
+	printf("\n");
 
 	do {
 		ret = sendto(sock, &packet, sizeof(packet), 0, (struct sockaddr *)&sin6, sizeof(sin6));
@@ -78,7 +81,10 @@ static int ping6(struct in6_addr *addr)
 }
 
 static PyObject *method_blast_bytearray(PyObject *self, PyObject *args) {
-    struct in6_addr *addr = NULL;
+    
+	init_sock();
+	
+	struct in6_addr *addr = NULL;
 	
 	long *len = NULL;
 	
@@ -88,15 +94,14 @@ static PyObject *method_blast_bytearray(PyObject *self, PyObject *args) {
         return NULL;
     }
 
-	printf ("len: %d\n",len);
-	for (int i=0;i<4;i++){
-		printf("%08x ",  addr->s6_addr32[i]);
-	}
-	printf("\n");
+	//printf ("len: %d\n",len);
+	//for (int i=0;i<4;i++){
+	//	printf("%08x ",  addr->s6_addr32[i]);
+	//}
+	//printf("\n");
 
 	ping6(addr);
 	
-
     return PyLong_FromLong(1);
 }
 
@@ -120,9 +125,7 @@ PyMODINIT_FUNC PyInit_turbopinger(void) {
 }
 #endif
 
-// if __name__=="__main__":
-int main(int argc, char *argv[])
-{
+void init_sock(){
 	sock = socket(AF_INET6, SOCK_RAW, IPPROTO_ICMPV6);
 	if (sock < 0)
 		err(1, "socket error");
@@ -130,7 +133,13 @@ int main(int argc, char *argv[])
 	int csum = offsetof(struct icmp6_hdr, icmp6_cksum);
 	if (setsockopt(sock, SOL_RAW, IPV6_CHECKSUM, &csum, sizeof(csum)) < 0)
 		err(1, "setsockopt error");
+}
 
+// if __name__=="__main__":
+int main(int argc, char *argv[])
+{
+
+	init_sock();
 	struct in6_addr addr;
 
 	/*
@@ -149,7 +158,7 @@ int main(int argc, char *argv[])
 	addr.s6_addr32[3]=0x5707b6f6;
 	
 	for (int i=0;i<4;i++){
-		printf("%04x ",  addr.s6_addr32[i]);
+		printf("%08x ",  addr.s6_addr32[i]);
 	}
 	printf("\n");
 
