@@ -78,18 +78,24 @@ static int ping6(struct in6_addr *addr)
 }
 
 static PyObject *method_blast_bytearray(PyObject *self, PyObject *args) {
-    struct in6_addr *addr_array = NULL;
+    struct in6_addr *addr = NULL;
 	
 	long *len = NULL;
+	
 
     /* Parse arguments */
-    if(!PyArg_ParseTuple(args, "Ol", &addr_array, &len)) {
+    if(!PyArg_ParseTuple(args, "y#", &addr, &len)) {
         return NULL;
     }
 
-	for (int i=0;i<len;i++){
-		ping6(&addr_array[i]);
+	printf ("len: %d\n",len);
+	for (int i=0;i<4;i++){
+		printf("%08x ",  addr->s6_addr32[i]);
 	}
+	printf("\n");
+
+	ping6(addr);
+	
 
     return PyLong_FromLong(1);
 }
@@ -126,10 +132,16 @@ int main(int argc, char *argv[])
 		err(1, "setsockopt error");
 
 	struct in6_addr addr;
-	//memset(&addr,0x00,8);
 
-	//example - pinging my local IP:
-	// fe80::17d2:7100:f6b6:757
+	/*
+	 example - pinging my local IP:
+	 fe80::17d2:7100:f6b6:757
+	 
+	 Please note - endianness is absolutely reversed.
+
+	 To check if it works, you may use tcpdump:
+	 	sudo tcpdump -i any icmp6
+	*/
 
 	addr.s6_addr32[0]=0x000080fe;
 	addr.s6_addr32[1]=0x00000000;
@@ -145,3 +157,4 @@ int main(int argc, char *argv[])
 	
 	return 0;
 }
+
